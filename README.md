@@ -4,19 +4,19 @@ A real-time multiplayer quiz application built in Go, designed to handle 50,000+
 
 ## Features
 
-- 🎮 **Real-time Multiplayer**: WebSocket-based real-time communication
-- 🏠 **Lobby System**: Create and join game lobbies
-- ⚡ **Live Scoring**: Real-time leaderboards with streak bonuses
-- 🎯 **Smart Questions**: Multiple categories with difficulty levels
-- 📱 **Responsive UI**: Works on desktop and mobile devices
-- 🔄 **Auto-reconnection**: Handles network disconnections gracefully
+- **Real-time Multiplayer**: WebSocket-based real-time communication
+- **Lobby System**: Create and join game lobbies
+- **Live Scoring**: Real-time leaderboards with streak bonuses
+- **Smart Questions**: Multiple categories with difficulty levels
+- **Responsive UI**: Works on desktop and mobile devices
+- **Auto-reconnection**: Handles network disconnections gracefully
 
 ## Quick Start
 
 ### Prerequisites
 
 - Go 1.21 or higher
-- Redis (optional, for production)
+- PostgreSQL (optional, for production)
 
 ### Installation
 
@@ -36,7 +36,7 @@ go mod tidy
 go run main.go
 ```
 
-4. Open your browser and go to `http://localhost:8080/client/index.html`
+4. The server will start on `http://localhost:8080`
 
 ## API Endpoints
 
@@ -87,13 +87,13 @@ The application uses several design patterns:
 
 ### Horizontal Scaling
 - Load balancing across multiple server instances
-- Redis for shared session state
+- PostgreSQL for shared session state
 - Regional deployment for reduced latency
 
 ### Performance Optimizations
 - Connection pooling
 - Message batching
-- Redis caching
+- Database caching
 - CDN for static assets
 
 ## Development
@@ -110,9 +110,7 @@ buildprize-game/
 │   ├── services/          # Business logic
 │   ├── repository/        # Data persistence
 │   └── server/            # HTTP/WebSocket server
-├── client/
-│   └── index.html         # Web client
-└── ARCHITECTURE.md        # Detailed architecture docs
+└── ARCHITECTURE_FLOW.md   # Detailed architecture docs
 ```
 
 ### Adding New Features
@@ -120,7 +118,6 @@ buildprize-game/
 1. **New Game Modes**: Extend the `GameService` with new game logic
 2. **Question Categories**: Add to `QuestionDatabase` in `services/questions.go`
 3. **Scoring Rules**: Modify `calculateScore` in `services/game_service.go`
-4. **UI Components**: Update the HTML client in `client/index.html`
 
 ## Testing
 
@@ -130,13 +127,13 @@ buildprize-game/
 3. Join the lobby from other tabs
 4. Start the game and test the flow
 
-### Load Testing
+### Automated Testing
 ```bash
-# Install artillery for load testing
-npm install -g artillery
+# Run Go tests
+go test ./internal/testing -v
 
-# Run load test
-artillery run load-test.yml
+# Or use Makefile
+make test
 ```
 
 ## Production Deployment
@@ -150,33 +147,13 @@ docker build -t buildprize-game .
 docker run -p 8080:8080 buildprize-game
 ```
 
-### Kubernetes
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: buildprize-game
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: buildprize-game
-  template:
-    metadata:
-      labels:
-        app: buildprize-game
-    spec:
-      containers:
-      - name: buildprize-game
-        image: buildprize-game:latest
-        ports:
-        - containerPort: 8080
-```
+### Railway.app
+The application is configured for Railway deployment with automatic PostgreSQL database provisioning.
 
 ## Environment Variables
 
 - `PORT`: Server port (default: 8080)
-- `REDIS_URL`: Redis connection URL (default: redis://localhost:6379)
+- `DATABASE_URL`: PostgreSQL connection URL (optional)
 - `MAX_LOBBY_SIZE`: Maximum players per lobby (default: 8)
 - `QUESTION_TIME`: Time per question in seconds (default: 30)
 
@@ -191,7 +168,3 @@ spec:
 ## License
 
 MIT License - see LICENSE file for details
-
-## Support
-
-For questions or issues, please open a GitHub issue or contact the development team.
