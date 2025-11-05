@@ -7,7 +7,6 @@ import (
 
 type Config struct {
 	Port         string
-	RedisURL     string
 	DatabaseURL  string
 	MaxLobbySize int
 	QuestionTime int // seconds
@@ -15,14 +14,12 @@ type Config struct {
 
 func Load() *Config {
 	port := getEnv("PORT", "8080")
-	redisURL := getEnv("REDIS_URL", "redis://localhost:6379")
-	databaseURL := getEnv("DATABASE_URL", "")
+	databaseURL := getEnv("DATABASE_URL", "postgres://quizuser:quizpass@localhost:5432/quizdb?sslmode=disable")
 	maxLobbySize := getEnvAsInt("MAX_LOBBY_SIZE", 8)
 	questionTime := getEnvAsInt("QUESTION_TIME", 30)
 
 	return &Config{
 		Port:         port,
-		RedisURL:     redisURL,
 		DatabaseURL:  databaseURL,
 		MaxLobbySize: maxLobbySize,
 		QuestionTime: questionTime,

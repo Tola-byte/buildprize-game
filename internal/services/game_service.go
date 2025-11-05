@@ -57,10 +57,19 @@ func (gs *GameService) JoinLobby(lobbyID, username string) (*models.Lobby, *mode
 	gs.repo.SaveLobby(lobby)
 
 	// Broadcast player joined
-	gs.broadcastLobbyUpdate(lobbyHub, "player_joined", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "player_joined", map[string]interface{}{
 		"player": player,
 		"lobby":  lobby,
 	})
+
+	// Auto-start game if we now have 2+ players and game can start
+	if lobby.CanStart() {
+		log.Printf("Auto-starting game for lobby %s (2+ players joined)", lobbyID)
+		if err := gs.StartGame(lobbyID); err != nil {
+			log.Printf("Failed to auto-start game: %v", err)
+			// Don't fail the join if auto-start fails
+		}
+	}
 
 	return lobby, player, nil
 }
@@ -80,7 +89,7 @@ func (gs *GameService) LeaveLobby(lobbyID, playerID string) error {
 	gs.repo.SaveLobby(lobby)
 
 	// Broadcast player left
-	gs.broadcastLobbyUpdate(lobbyHub, "player_left", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "player_left", map[string]interface{}{
 		"player_id": playerID,
 		"lobby":     lobby,
 	})
@@ -107,6 +116,11 @@ func (gs *GameService) StartGame(lobbyID string) error {
 
 	lobby.StartGame()
 	gs.repo.SaveLobby(lobby)
+
+	// Broadcast game started event with updated lobby state
+	gs.BroadcastLobbyUpdate(lobbyHub, "game_started", map[string]interface{}{
+		"lobby": lobby,
+	})
 
 	// Start first question
 	gs.startNextQuestion(lobbyHub)
@@ -144,7 +158,7 @@ func (gs *GameService) SubmitAnswer(lobbyID, playerID string, answer int, respon
 	gs.repo.SaveLobby(lobby)
 
 	// Broadcast answer received
-	gs.broadcastLobbyUpdate(lobbyHub, "answer_received", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "answer_received", map[string]interface{}{
 		"player_id": playerID,
 		"score":     score,
 		"streak":    player.Streak,
@@ -184,7 +198,7 @@ func (gs *GameService) startNextQuestion(lobbyHub *hub.LobbyHub) {
 	gs.repo.SaveLobby(lobby)
 
 	// Broadcast new question
-	gs.broadcastLobbyUpdate(lobbyHub, "new_question", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "new_question", map[string]interface{}{
 		"question":  question,
 		"round":     lobby.Round,
 		"time_left": 30,
@@ -204,7 +218,7 @@ func (gs *GameService) endQuestion(lobbyHub *hub.LobbyHub) {
 	leaderboard := gs.calculateLeaderboard(lobby)
 
 	// Broadcast results
-	gs.broadcastLobbyUpdate(lobbyHub, "question_results", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "question_results", map[string]interface{}{
 		"correct_answer": lobby.CurrentQ.Correct,
 		"leaderboard":    leaderboard,
 		"round":          lobby.Round,
@@ -228,7 +242,7 @@ func (gs *GameService) endGame(lobbyHub *hub.LobbyHub) {
 
 	leaderboard := gs.calculateLeaderboard(lobby)
 
-	gs.broadcastLobbyUpdate(lobbyHub, "game_ended", map[string]interface{}{
+	gs.BroadcastLobbyUpdate(lobbyHub, "game_ended", map[string]interface{}{
 		"final_leaderboard": leaderboard,
 		"winner":            leaderboard[0],
 	})
@@ -253,7 +267,7 @@ func (gs *GameService) calculateLeaderboard(lobby *models.Lobby) []*models.Playe
 	return players
 }
 
-func (gs *GameService) broadcastLobbyUpdate(lobbyHub *hub.LobbyHub, eventType string, data interface{}) {
+func (gs *GameService) BroadcastLobbyUpdate(lobbyHub *hub.LobbyHub, eventType string, data interface{}) {
 	event := models.GameEvent{
 		Type:      eventType,
 		LobbyID:   lobbyHub.GetLobby().ID,

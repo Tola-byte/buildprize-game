@@ -1,0 +1,63 @@
+.leaderboard {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.leaderboard h2 {
+  margin: 0 0 16px;
+  color: #333;
+  font-size: 1.5em;
+}
+
+.leaderboard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  transition: transform 0.2s;
+}
+
+.leaderboard-item:hover {
+  transform: translateX(4px);
+}
+
+.rank {
+  font-size: 1.5em;
+  font-weight: bold;
+  color: #667eea;
+  min-width: 40px;
+}
+
+.player-info {
+  flex: 1;
+}
+
+.player-name {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.player-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  color: #666;
+}
+
+.streak {
+  color: #ff6b6b;
+  font-weight: 600;
+}
+

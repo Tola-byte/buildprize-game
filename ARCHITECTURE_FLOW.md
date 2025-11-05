@@ -94,8 +94,7 @@ The application follows a layered architecture with clear separation of concerns
 
 **Data Layer** (`internal/repository/`)
 - Repository pattern for data abstraction
-- In-memory storage for development
-- PostgreSQL integration for production
+- PostgreSQL integration for persistent storage
 - Clean interface for easy testing
 
 **Real-time Layer** (`internal/hub/`)

@@ -153,7 +153,7 @@ The application is configured for Railway deployment with automatic PostgreSQL d
 ## Environment Variables
 
 - `PORT`: Server port (default: 8080)
-- `DATABASE_URL`: PostgreSQL connection URL (optional)
+- `DATABASE_URL`: PostgreSQL connection URL (required)
 - `MAX_LOBBY_SIZE`: Maximum players per lobby (default: 8)
 - `QUESTION_TIME`: Time per question in seconds (default: 30)
 

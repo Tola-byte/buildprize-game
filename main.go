@@ -11,10 +11,7 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.Load()
-
-	// Create and start the server
 	srv := server.NewServer(cfg)
-	
 	log.Printf("Starting server on port %s", cfg.Port)
 	if err := srv.Start(); err != nil {
 		log.Fatal("Failed to start server:", err)

@@ -33,11 +33,10 @@ func TestMain(m *testing.M) {
 
 func setup() {
 	fmt.Println("🚀 Setting up BuildPrize Quiz Backend Tests")
-	fmt.Println("=" * 50)
-	
+	fmt.Println(strings.Repeat("=", 50))
+
 	// Start the server
 	startServer()
-	
 	// Wait for server to be ready
 	waitForServer()
 	
@@ -335,7 +334,7 @@ func TestFullGameFlow(t *testing.T) {
 	
 	fmt.Println("✅ Full game flow completed successfully!")
 	fmt.Println("\n🎉 All tests passed!")
-	fmt.Println("=" * 50)
+	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println("Backend is working correctly!")
 	fmt.Println("You can now:")
 	fmt.Println("  - Create lobbies via API")
