@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
@@ -106,16 +107,30 @@ func (lh *LobbyHub) run() {
 
 		case message := <-lh.broadcast:
 			lh.mu.RLock()
+			clientCount := len(lh.clients)
+			log.Printf("LobbyHub: Broadcasting message to %d clients in lobby %s", clientCount, lh.lobby.ID)
+
 			// Collect clients that need to be removed
 			var clientsToRemove []string
-			for _, client := range lh.clients {
+			successCount := 0
+			for clientID, client := range lh.clients {
 				select {
 				case client.Send <- message:
+					successCount++
+					// Log chat messages being sent
+					var msgData map[string]interface{}
+					if err := json.Unmarshal(message, &msgData); err == nil {
+						if msgType, ok := msgData["type"].(string); ok && msgType == "chat_message" {
+							log.Printf("  Sent chat_message to client %s (player: %s)", clientID, client.PlayerID)
+						}
+					}
 				default:
 					// Client's send channel is full, mark for removal
+					log.Printf("  Client %s send channel full, marking for removal", clientID)
 					clientsToRemove = append(clientsToRemove, client.ID)
 				}
 			}
+			log.Printf("LobbyHub: Successfully queued message to %d/%d clients", successCount, clientCount)
 			lh.mu.RUnlock()
 
 			// Remove dead clients (requires write lock)

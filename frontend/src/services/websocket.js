@@ -309,6 +309,23 @@ class WebSocketService {
     this.send('start_game', { lobby_id: lobbyId });
   }
 
+  sendChatMessage(lobbyId, playerId, message) {
+    console.log('Sending chat message:', { lobbyId, playerId, message });
+    console.log('WebSocket state:', this.ws?.readyState, this.ws ? 'OPEN=' + WebSocket.OPEN : 'no ws');
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.error('Cannot send chat message: WebSocket not connected');
+      return;
+    }
+    const messageData = {
+      type: 'chat_message',
+      lobby_id: lobbyId,
+      player_id: playerId,
+      data: { message },
+    };
+    console.log('Sending WebSocket message:', messageData);
+    this.ws.send(JSON.stringify(messageData));
+  }
+
   submitAnswer(lobbyId, playerId, answer, responseTime) {
     this.send('submit_answer', {
       lobby_id: lobbyId,

@@ -45,6 +45,7 @@ type Lobby struct {
 	MaxRounds   int        `json:"max_rounds"`
 	CreatedAt   time.Time  `json:"created_at"`
 	StartedAt   *time.Time `json:"started_at,omitempty"`
+	FinishedAt  *time.Time `json:"finished_at,omitempty"`
 	QuestionEnd *time.Time `json:"question_end,omitempty"`
 }
 

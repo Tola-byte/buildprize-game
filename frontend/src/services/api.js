@@ -1,4 +1,26 @@
-const API_BASE = 'http://localhost:8080/api/v1';
+// Get API base URL
+// When frontend is on ngrok and backend is on localhost, you need to expose backend via ngrok too
+// Set VITE_API_BASE_URL in .env file to your backend ngrok URL
+function getApiBase() {
+  // Check for environment variable first (for explicit configuration)
+  // Example: VITE_API_BASE_URL=https://your-backend-ngrok.ngrok.io/api/v1
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // In development with vite proxy (localhost), use relative URL
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return '/api/v1';
+  }
+  
+  // If frontend is on ngrok but no env var set, try same origin
+  // (This only works if backend is on same ngrok tunnel)
+  const protocol = window.location.protocol;
+  const host = window.location.host;
+  return `${protocol}//${host}/api/v1`;
+}
+
+const API_BASE = getApiBase();
 
 export const api = {
   // Create a new lobby
@@ -71,5 +93,18 @@ export const api = {
     if (!response.ok) throw new Error('Failed to submit answer');
     return response.json();
   },
-};
 
+  // Send a chat message
+  sendChatMessage: async (lobbyId, playerId, message) => {
+    const response = await fetch(`${API_BASE}/lobbies/${lobbyId}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        player_id: playerId,
+        message: message,
+      }),
+    });
+    if (!response.ok) throw new Error('Failed to send chat message');
+    return response.json();
+  },
+};

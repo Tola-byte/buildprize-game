@@ -24,16 +24,28 @@ export default function LobbyScreen() {
          wsService.ws.readyState !== WebSocket.CONNECTING)) {
       wsService.connect();
     }
-    // Don't disconnect on unmount - let GameScreen use the same connection
-    // return () => wsService.disconnect();
+    // Auto-refresh lobby list every 5 seconds
+    const interval = setInterval(loadLobbies, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadLobbies = async () => {
     try {
       const data = await api.listLobbies();
-      setLobbies(data.filter(l => l.state === 'waiting'));
+      console.log('Loaded lobbies from API:', data);
+      // Handle null/undefined response - ensure we have an array
+      if (data && Array.isArray(data)) {
+        // Backend now only returns waiting lobbies, but filter just in case
+        const waitingLobbies = data.filter(l => l.state === 'waiting');
+        console.log('Filtered waiting lobbies:', waitingLobbies);
+        setLobbies(waitingLobbies);
+      } else {
+        console.log('No data or not an array, setting empty array');
+        setLobbies([]);
+      }
     } catch (err) {
       console.error('Failed to load lobbies:', err);
+      setLobbies([]); // Set empty array on error
     }
   };
 
@@ -133,13 +145,29 @@ export default function LobbyScreen() {
     await handleJoinLobby(lobbyId);
   };
 
+  const handleJoinRandom = async () => {
+    if (!username) {
+      setError('Please enter your username first');
+      return;
+    }
+    if (lobbies.length === 0) {
+      setError('No available lobbies. Create one or wait for others to create lobbies.');
+      return;
+    }
+    // Pick a random lobby from available lobbies
+    const randomLobby = lobbies[Math.floor(Math.random() * lobbies.length)];
+    await handleJoinLobby(randomLobby.id);
+  };
+
   if (screen === 'home') {
     return (
       <div className="lobby-screen">
         <div className="lobby-container">
           <h1>🎮 Quiz Game</h1>
-          <div className="username-input">
+          <div className="form-group">
+            <label htmlFor="usernameHome">Your Username</label>
             <input
+              id="usernameHome"
               type="text"
               placeholder="Enter your username"
               value={username}
@@ -160,22 +188,68 @@ export default function LobbyScreen() {
           {error && <div className="error">{error}</div>}
 
           <div className="lobbies-list">
-            <h2>Available Lobbies</h2>
-            <button onClick={loadLobbies} className="btn-small">Refresh</button>
+            <div className="lobbies-header">
+              <h2>🎯 Available Lobbies</h2>
+              <div className="lobbies-actions">
+                <button onClick={loadLobbies} className="btn btn-small btn-secondary">
+                  🔄 Refresh
+                </button>
+                <button 
+                  onClick={handleJoinRandom} 
+                  className="btn btn-small btn-primary"
+                  disabled={loading || lobbies.filter(l => l.state === 'waiting').length === 0}
+                >
+                  🎲 Join Random
+                </button>
+              </div>
+            </div>
             {lobbies.length === 0 ? (
-              <p>No lobbies available</p>
+              <div className="no-lobbies">
+                <p>No lobbies available</p>
+                <p className="hint">Create a lobby or wait for others to create one!</p>
+              </div>
             ) : (
-              <ul>
+              <ul className="lobbies-grid">
                 {lobbies.map((lobby) => (
                   <li key={lobby.id} className="lobby-item">
-                    <div>
-                      <strong>{lobby.name}</strong>
-                      <span>{lobby.players?.length || 0}/8 players</span>
+                    <div className="lobby-item-content">
+                      <div className="lobby-item-header">
+                        <strong className="lobby-name">{lobby.name}</strong>
+                        <span className="lobby-status lobby-status-waiting">
+                          ⏳ Waiting
+                        </span>
+                      </div>
+                      <div className="lobby-item-details">
+                        <span className="lobby-players">
+                          👥 {lobby.players?.length || 0}/8 players
+                        </span>
+                        <span className="lobby-rounds">
+                          📝 {lobby.max_rounds || 10} questions
+                        </span>
+                      </div>
+                      {lobby.players && lobby.players.length > 0 && (
+                        <div className="lobby-players-list">
+                          <span className="players-label">Players:</span>
+                          <div className="players-badges">
+                            {lobby.players.slice(0, 4).map((p) => (
+                              <span key={p.id} className="player-badge-small">
+                                {p.username}
+                              </span>
+                            ))}
+                            {lobby.players.length > 4 && (
+                              <span className="player-badge-small">
+                                +{lobby.players.length - 4} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => handleJoinLobby(lobby.id)}
-                      className="btn btn-small"
+                      className="btn btn-primary btn-join"
                       disabled={loading}
+                      title="Join this lobby"
                     >
                       Join
                     </button>
@@ -195,31 +269,45 @@ export default function LobbyScreen() {
         <div className="lobby-container">
           <h1>Create Lobby</h1>
           <form onSubmit={handleCreateLobby}>
-            <input
-              type="text"
-              placeholder="Lobby name"
-              value={lobbyName}
-              onChange={(e) => setLobbyName(e.target.value)}
-              className="input"
-              required
-            />
-            <input
-              type="number"
-              placeholder="Max rounds (default: 10)"
-              value={maxRounds}
-              onChange={(e) => setMaxRounds(parseInt(e.target.value) || 10)}
-              className="input"
-              min="1"
-              max="50"
-            />
-            <input
-              type="text"
-              placeholder="Your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input"
-              required
-            />
+            <div className="form-group">
+              <label htmlFor="lobbyName">Lobby Name</label>
+              <input
+                id="lobbyName"
+                type="text"
+                placeholder="Enter lobby name"
+                value={lobbyName}
+                onChange={(e) => setLobbyName(e.target.value)}
+                className="input"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="maxRounds">Number of Questions</label>
+              <select
+                id="maxRounds"
+                value={maxRounds}
+                onChange={(e) => setMaxRounds(parseInt(e.target.value))}
+                className="input"
+              >
+                {[5, 10, 15, 20, 25, 30].map((num) => (
+                  <option key={num} value={num}>
+                    {num} questions
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="username">Your Username</label>
+              <input
+                id="username"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input"
+                required
+              />
+            </div>
             <div className="button-group">
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? 'Creating...' : 'Create & Join'}
@@ -245,22 +333,30 @@ export default function LobbyScreen() {
         <div className="lobby-container">
           <h1>Join Lobby</h1>
           <form onSubmit={handleJoinById}>
-            <input
-              type="text"
-              placeholder="Lobby ID"
-              value={lobbyId}
-              onChange={(e) => setLobbyId(e.target.value)}
-              className="input"
-              required
-            />
-            <input
-              type="text"
-              placeholder="Your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="input"
-              required
-            />
+            <div className="form-group">
+              <label htmlFor="lobbyId">Lobby ID</label>
+              <input
+                id="lobbyId"
+                type="text"
+                placeholder="Enter lobby ID"
+                value={lobbyId}
+                onChange={(e) => setLobbyId(e.target.value)}
+                className="input"
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="usernameJoin">Your Username</label>
+              <input
+                id="usernameJoin"
+                type="text"
+                placeholder="Enter your username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="input"
+                required
+              />
+            </div>
             <div className="button-group">
               <button type="submit" className="btn btn-primary" disabled={loading}>
                 {loading ? 'Joining...' : 'Join'}

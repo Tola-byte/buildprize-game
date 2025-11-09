@@ -18,10 +18,30 @@ type GameService struct {
 }
 
 func NewGameService(hub *hub.Hub, repo repository.Repository) *GameService {
-	return &GameService{
+	gs := &GameService{
 		hub:        hub,
 		repo:       repo,
 		questionDB: NewQuestionDatabase(),
+	}
+
+	// Start background cleanup task for finished games
+	go gs.startCleanupTask()
+
+	return gs
+}
+
+// startCleanupTask runs periodically to delete finished games older than 10 minutes
+func (gs *GameService) startCleanupTask() {
+	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
+	defer ticker.Stop()
+
+	for range ticker.C {
+		deleted, err := gs.repo.DeleteFinishedGamesOlderThan(10 * time.Minute)
+		if err != nil {
+			log.Printf("Error cleaning up finished games: %v", err)
+		} else if deleted > 0 {
+			log.Printf("Cleaned up %d finished game(s) older than 10 minutes", deleted)
+		}
 	}
 }
 
@@ -32,9 +52,14 @@ func (gs *GameService) GetRepository() repository.Repository {
 func (gs *GameService) CreateLobby(name string, maxRounds int) *models.Lobby {
 	lobby := models.NewLobby(name, maxRounds)
 	gs.hub.CreateLobbyHub(lobby)
-	gs.repo.SaveLobby(lobby)
 
-	log.Printf("Created lobby %s with ID %s", name, lobby.ID)
+	// Save lobby to database
+	if err := gs.repo.SaveLobby(lobby); err != nil {
+		log.Printf("ERROR: Failed to save lobby %s: %v", lobby.ID, err)
+	} else {
+		log.Printf("Created lobby %s with ID %s, State: %s, Players: %d - Saved to database", name, lobby.ID, lobby.State, len(lobby.Players))
+	}
+
 	return lobby
 }
 
@@ -56,20 +81,17 @@ func (gs *GameService) JoinLobby(lobbyID, username string) (*models.Lobby, *mode
 	player := lobby.AddPlayer(username)
 	gs.repo.SaveLobby(lobby)
 
+	log.Printf("Player %s joined lobby %s, State: %s, Total players: %d", username, lobbyID, lobby.State, len(lobby.Players))
+
 	// Broadcast player joined
 	gs.BroadcastLobbyUpdate(lobbyHub, "player_joined", map[string]interface{}{
 		"player": player,
 		"lobby":  lobby,
 	})
 
-	// Auto-start game if we now have 2+ players and game can start
-	if lobby.CanStart() {
-		log.Printf("Auto-starting game for lobby %s (2+ players joined)", lobbyID)
-		if err := gs.StartGame(lobbyID); err != nil {
-			log.Printf("Failed to auto-start game: %v", err)
-			// Don't fail the join if auto-start fails
-		}
-	}
+	// Removed auto-start - lobbies now stay in "waiting" state until host manually starts
+	// This keeps lobbies visible in the list so others can see and join them
+	// Host can start the game when ready using the "Start Game" button
 
 	return lobby, player, nil
 }
@@ -193,20 +215,28 @@ func (gs *GameService) startNextQuestion(lobbyHub *hub.LobbyHub) {
 	}
 
 	question := gs.questionDB.GetRandomQuestion()
-	lobby.SetQuestion(question, 30*time.Second)
+	lobby.SetQuestion(question, 15*time.Second)
 
 	gs.repo.SaveLobby(lobby)
 
-	// Broadcast new question
+	// Broadcast new question with server timestamp for synchronization
+	// Capture timestamps right before broadcasting to ensure accuracy
+	// All clients will use these timestamps to calculate synchronized countdown
+	questionEndTimestamp := lobby.QuestionEnd.UnixMilli() // Absolute server time when question ends
+	currentServerTime := time.Now().UnixMilli()           // Server time right before broadcast
+
+	// Broadcast immediately to minimize delay differences between clients
 	gs.BroadcastLobbyUpdate(lobbyHub, "new_question", map[string]interface{}{
-		"question":  question,
-		"round":     lobby.Round,
-		"time_left": 30,
+		"question":          question,
+		"round":             lobby.Round,
+		"time_left":         15,
+		"question_end_time": questionEndTimestamp, // Server timestamp when question ends (absolute time)
+		"server_time":       currentServerTime,    // Server time when message is sent (for clock sync)
 	})
 
 	// Schedule question end
 	go func() {
-		time.Sleep(30 * time.Second)
+		time.Sleep(15 * time.Second)
 		gs.endQuestion(lobbyHub)
 	}()
 }
@@ -240,14 +270,28 @@ func (gs *GameService) endGame(lobbyHub *hub.LobbyHub) {
 	lobby := lobbyHub.GetLobby()
 	lobby.State = models.Finished
 
+	// Set finished timestamp for cleanup tracking
+	now := time.Now()
+	lobby.FinishedAt = &now
+
 	leaderboard := gs.calculateLeaderboard(lobby)
 
-	gs.BroadcastLobbyUpdate(lobbyHub, "game_ended", map[string]interface{}{
+	eventData := map[string]interface{}{
 		"final_leaderboard": leaderboard,
-		"winner":            leaderboard[0],
-	})
+	}
+
+	// Only set winner if there's at least one player
+	if len(leaderboard) > 0 {
+		eventData["winner"] = leaderboard[0]
+	} else {
+		log.Printf("⚠️ WARNING: Game ended with no players in lobby %s", lobby.ID)
+		eventData["winner"] = nil
+	}
+
+	gs.BroadcastLobbyUpdate(lobbyHub, "game_ended", eventData)
 
 	gs.repo.SaveLobby(lobby)
+	log.Printf("Game finished for lobby %s, will be deleted in 10 minutes", lobby.ID)
 }
 
 func (gs *GameService) calculateLeaderboard(lobby *models.Lobby) []*models.Player {

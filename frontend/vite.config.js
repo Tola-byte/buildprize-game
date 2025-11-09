@@ -16,5 +16,6 @@ export default defineConfig({
         ws: false,
       },
     },
+    //allowedHosts: ['localhost','5d771ddb5d1e.ngrok-free.app', '127.0.0.1', '0.0.0.0'],
   },
 })

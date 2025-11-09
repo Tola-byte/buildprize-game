@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 	"buildprize-game/internal/config"
 	"buildprize-game/internal/hub"
+	"buildprize-game/internal/models"
 	"buildprize-game/internal/repository"
 	"buildprize-game/internal/services"
 
@@ -137,6 +139,8 @@ func (s *Server) setupRoutes() {
 		api.POST("/lobbies/:id/start", s.startGame)
 		api.OPTIONS("/lobbies/:id/answer", func(c *gin.Context) { c.Status(204) })
 		api.POST("/lobbies/:id/answer", s.submitAnswer)
+		api.OPTIONS("/lobbies/:id/chat", func(c *gin.Context) { c.Status(204) })
+		api.POST("/lobbies/:id/chat", s.sendChatMessage)
 	}
 
 	// WebSocket endpoint - must be before any catch-all routes
@@ -144,6 +148,7 @@ func (s *Server) setupRoutes() {
 
 	// Debug: log all routes
 	log.Printf("WebSocket route registered at GET /ws")
+	log.Printf("Chat route registered at POST /api/v1/lobbies/:id/chat")
 }
 
 func (s *Server) createLobby(c *gin.Context) {
@@ -168,8 +173,17 @@ func (s *Server) createLobby(c *gin.Context) {
 func (s *Server) listLobbies(c *gin.Context) {
 	lobbies, err := s.gameService.GetRepository().ListLobbies()
 	if err != nil {
+		log.Printf("Error listing lobbies: %v", err)
 		c.JSON(500, gin.H{"error": "Failed to list lobbies"})
 		return
+	}
+	// Ensure we always return an array, not null
+	if lobbies == nil {
+		lobbies = []*models.Lobby{}
+	}
+	log.Printf("ListLobbies: Returning %d waiting lobbies", len(lobbies))
+	for _, lobby := range lobbies {
+		log.Printf("  - Lobby: %s (ID: %s, State: %s, Players: %d)", lobby.Name, lobby.ID, lobby.State, len(lobby.Players))
 	}
 	c.JSON(200, lobbies)
 }
@@ -265,6 +279,56 @@ func (s *Server) submitAnswer(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{"message": "Answer submitted"})
+}
+
+func (s *Server) sendChatMessage(c *gin.Context) {
+	lobbyID := c.Param("id")
+
+	var req struct {
+		PlayerID string `json:"player_id" binding:"required"`
+		Message  string `json:"message" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get lobby hub
+	lobbyHub := s.hub.GetLobbyHub(lobbyID)
+	if lobbyHub == nil {
+		c.JSON(404, gin.H{"error": "Lobby not found"})
+		return
+	}
+
+	// Get player username
+	lobby := lobbyHub.GetLobby()
+	player := lobby.GetPlayer(req.PlayerID)
+	if player == nil {
+		c.JSON(404, gin.H{"error": "Player not found in lobby"})
+		return
+	}
+
+	// Broadcast chat message to all clients in the lobby
+	log.Printf("REST API: Broadcasting chat message from player %s (%s) in lobby %s: %s", req.PlayerID, player.Username, lobbyID, req.Message)
+	clients := lobbyHub.GetClients()
+	log.Printf("Lobby %s has %d clients to receive the message", lobbyID, len(clients))
+
+	// Log each client that will receive the message
+	for clientID, client := range clients {
+		log.Printf("  Client %s (player: %s) will receive message", clientID, client.PlayerID)
+	}
+
+	s.gameService.BroadcastLobbyUpdate(lobbyHub, "chat_message", map[string]interface{}{
+		"player_id": req.PlayerID,
+		"username":  player.Username,
+		"message":   req.Message,
+		"timestamp": time.Now().UnixMilli(),
+	})
+
+	log.Printf("REST API: Chat message broadcast completed for lobby %s", lobbyID)
+
+	c.JSON(200, gin.H{"message": "Chat message sent"})
 }
 
 func (s *Server) handleWebSocket(c *gin.Context) {
@@ -446,6 +510,14 @@ func (s *Server) handleClientWrites(conn *websocket.Conn, client *hub.Client, wr
 				return
 			}
 
+			// Log message being sent (for debugging chat messages)
+			var msgData map[string]interface{}
+			if err := json.Unmarshal(message, &msgData); err == nil {
+				if msgType, ok := msgData["type"].(string); ok && msgType == "chat_message" {
+					log.Printf("Writing chat_message to client %s (player: %s)", client.ID, client.PlayerID)
+				}
+			}
+
 			if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
 				// These errors are BENIGN - they occur when one goroutine closes the connection
 				// while another is trying to write. This is normal and expected.
@@ -484,6 +556,7 @@ func (s *Server) handleClientWrites(conn *websocket.Conn, client *hub.Client, wr
 }
 
 func (s *Server) handleWebSocketMessage(client *hub.Client, msg *WebSocketMessage) {
+	log.Printf("handleWebSocketMessage: Received message type=%s from client=%s", msg.Type, client.ID)
 	switch msg.Type {
 	case "join_lobby":
 		s.handleJoinLobby(client, msg)
@@ -493,6 +566,10 @@ func (s *Server) handleWebSocketMessage(client *hub.Client, msg *WebSocketMessag
 		s.handleStartGame(client, msg)
 	case "submit_answer":
 		s.handleSubmitAnswer(client, msg)
+	case "chat_message":
+		s.handleChatMessage(client, msg)
+	default:
+		log.Printf("handleWebSocketMessage: Unknown message type: %s", msg.Type)
 	}
 }
 
@@ -550,7 +627,14 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 	// This prevents duplicate joins and re-broadcasts
 	if !playerExists {
 		// Join the player and broadcast to all clients (including the one just registered)
-		s.gameService.JoinLobby(lobbyID, username)
+		_, newPlayer, err := s.gameService.JoinLobby(lobbyID, username)
+		if err == nil && newPlayer != nil {
+			// Set the client's PlayerID from the newly created player
+			client.PlayerID = newPlayer.ID
+			log.Printf("handleJoinLobby: Set client.PlayerID to %s for newly joined player %s", newPlayer.ID, username)
+		} else if err != nil {
+			log.Printf("handleJoinLobby: Failed to join lobby %s for player %s: %v", lobbyID, username, err)
+		}
 	} else {
 		// Player already joined via REST, broadcast current state to ALL clients
 		// Get fresh lobby state to ensure we're broadcasting the latest state
@@ -560,6 +644,53 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 		s.gameService.BroadcastLobbyUpdate(lobbyHub, "player_joined", map[string]interface{}{
 			"lobby": currentLobby,
 		})
+	}
+
+	// ============================================================================
+	// FIX: Send current question to newly connected clients
+	// ============================================================================
+	// PROBLEM: When a client joins a lobby that already has a game in progress,
+	// they miss the current question because it was sent before they registered.
+	// This causes the first question to only show for the creator, not the joiner.
+	//
+	// SOLUTION: After registering the client, check if the game is in progress
+	// and if there's an active question. If so, send it directly to this client.
+	// ============================================================================
+	currentLobby := lobbyHub.GetLobby()
+	if currentLobby.State == models.InProgress && currentLobby.IsQuestionActive() && currentLobby.CurrentQ != nil {
+		// Game is in progress with an active question - send it to the newly connected client
+		questionEndTimestamp := currentLobby.QuestionEnd.UnixMilli()
+		currentServerTime := time.Now().UnixMilli()
+		remainingSeconds := int(time.Until(*currentLobby.QuestionEnd).Seconds())
+		if remainingSeconds < 0 {
+			remainingSeconds = 0
+		}
+
+		event := models.GameEvent{
+			Type:    "new_question",
+			LobbyID: currentLobby.ID,
+			Data: map[string]interface{}{
+				"question":          currentLobby.CurrentQ,
+				"round":             currentLobby.Round,
+				"time_left":         remainingSeconds,
+				"question_end_time": questionEndTimestamp,
+				"server_time":       currentServerTime,
+			},
+			Timestamp: time.Now(),
+		}
+
+		jsonData, err := json.Marshal(event)
+		if err != nil {
+			log.Printf("Error marshaling current question for client %s: %v", client.ID, err)
+		} else {
+			// Send directly to this client's channel (non-blocking)
+			select {
+			case client.Send <- jsonData:
+				log.Printf("Sent current question to newly connected client %s (player: %s) in lobby %s", client.ID, client.PlayerID, lobbyID)
+			default:
+				log.Printf("Warning: Could not send current question to client %s (channel full)", client.ID)
+			}
+		}
 	}
 }
 
@@ -636,6 +767,96 @@ func (s *Server) handleSubmitAnswer(client *hub.Client, msg *WebSocketMessage) {
 	responseTime, _ := data["response_time"].(float64)
 
 	s.gameService.SubmitAnswer(lobbyID, playerID, int(answer), int64(responseTime))
+}
+
+func (s *Server) handleChatMessage(client *hub.Client, msg *WebSocketMessage) {
+	log.Printf("handleChatMessage called: client=%s, msg.Type=%s, msg.LobbyID=%s, msg.PlayerID=%s, msg.Data=%v",
+		client.ID, msg.Type, msg.LobbyID, msg.PlayerID, msg.Data)
+
+	lobbyID := msg.LobbyID
+	if lobbyID == "" && client.LobbyID != "" {
+		lobbyID = client.LobbyID
+	}
+
+	if lobbyID == "" {
+		log.Printf("handleChatMessage: No lobby ID provided")
+		return
+	}
+
+	// Get message data
+	data, ok := msg.Data.(map[string]interface{})
+	if !ok {
+		log.Printf("handleChatMessage: Invalid message data type, got %T, expected map[string]interface{}", msg.Data)
+		return
+	}
+	log.Printf("handleChatMessage: Message data extracted: %v", data)
+
+	messageText, ok := data["message"].(string)
+	if !ok || messageText == "" {
+		log.Printf("handleChatMessage: Invalid or empty message")
+		return
+	}
+
+	// Get player info - try multiple sources
+	playerID := client.PlayerID
+	if playerID == "" {
+		// Try from top-level message first (frontend sends it there)
+		if msg.PlayerID != "" {
+			playerID = msg.PlayerID
+		}
+	}
+	if playerID == "" {
+		// Try to get from message data as fallback
+		if pid, ok := data["player_id"].(string); ok {
+			playerID = pid
+		}
+	}
+
+	if playerID == "" {
+		log.Printf("handleChatMessage: No player ID found for client %s (client.PlayerID: %s, msg.PlayerID: %s, data: %v)",
+			client.ID, client.PlayerID, msg.PlayerID, data)
+		return
+	}
+
+	// Update client.PlayerID if we found it from the message (for future messages)
+	if client.PlayerID == "" && playerID != "" {
+		client.PlayerID = playerID
+		log.Printf("handleChatMessage: Set client.PlayerID to %s for client %s", playerID, client.ID)
+	}
+
+	// Get lobby hub
+	lobbyHub := s.hub.GetLobbyHub(lobbyID)
+	if lobbyHub == nil {
+		log.Printf("handleChatMessage: Lobby %s not found", lobbyID)
+		return
+	}
+
+	// Get player username
+	lobby := lobbyHub.GetLobby()
+	player := lobby.GetPlayer(playerID)
+	if player == nil {
+		log.Printf("handleChatMessage: Player %s not found in lobby %s", playerID, lobbyID)
+		return
+	}
+
+	// Broadcast chat message to all clients in the lobby
+	log.Printf("WebSocket: Broadcasting chat message from player %s (%s) in lobby %s: %s", playerID, player.Username, lobbyID, messageText)
+	clients := lobbyHub.GetClients()
+	log.Printf("Lobby %s has %d clients to receive the message", lobbyID, len(clients))
+
+	// Log each client that will receive the message
+	for clientID, client := range clients {
+		log.Printf("  Client %s (player: %s) will receive message", clientID, client.PlayerID)
+	}
+
+	s.gameService.BroadcastLobbyUpdate(lobbyHub, "chat_message", map[string]interface{}{
+		"player_id": playerID,
+		"username":  player.Username,
+		"message":   messageText,
+		"timestamp": time.Now().UnixMilli(),
+	})
+
+	log.Printf("WebSocket: Chat message broadcast completed for lobby %s", lobbyID)
 }
 
 func (s *Server) Start() error {
