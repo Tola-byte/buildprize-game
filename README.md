@@ -7,7 +7,7 @@ A real-time multiplayer quiz application built in Go, designed to handle 50,000+
 - **Real-time Multiplayer**: WebSocket-based real-time communication
 - **Lobby System**: Create and join game lobbies
 - **Live Scoring**: Real-time leaderboards with streak bonuses
-- **Smart Questions**: Multiple categories with difficulty levels
+- **In-game chat**: Players can text and communicate with each other in-game.
 - **Responsive UI**: Works on desktop and mobile devices
 - **Auto-reconnection**: Handles network disconnections gracefully
 
