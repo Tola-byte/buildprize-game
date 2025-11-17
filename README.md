@@ -1,6 +1,6 @@
 # BuildPrize Quiz Game
 
-A real-time multiplayer quiz application built in Go, designed to handle 50,000+ concurrent users with low latency and high scalability.
+A real-time multiplayer quiz application with crypto payments, built in Go and React. Features WebSocket-based gameplay, USDC payment integration, live leaderboards, and scalable architecture designed to handle 50,000+ concurrent users.
 
 ## Features
 

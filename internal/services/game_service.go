@@ -24,15 +24,14 @@ func NewGameService(hub *hub.Hub, repo repository.Repository) *GameService {
 		questionDB: NewQuestionDatabase(),
 	}
 
-	// Start background cleanup task for finished games
 	go gs.startCleanupTask()
 
 	return gs
 }
 
-// startCleanupTask runs periodically to delete finished games older than 10 minutes
+
 func (gs *GameService) startCleanupTask() {
-	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
+	ticker := time.NewTicker(5 * time.Minute) 
 	defer ticker.Stop()
 
 	for range ticker.C {
@@ -70,7 +69,7 @@ func (gs *GameService) JoinLobby(lobbyID, username string) (*models.Lobby, *mode
 	}
 
 	lobby := lobbyHub.GetLobby()
-	if len(lobby.Players) >= 8 { // Max lobby size
+	if len(lobby.Players) >= 8 {
 		return nil, nil, ErrLobbyFull
 	}
 
@@ -89,10 +88,6 @@ func (gs *GameService) JoinLobby(lobbyID, username string) (*models.Lobby, *mode
 		"lobby":  lobby,
 	})
 
-	// Removed auto-start - lobbies now stay in "waiting" state until host manually starts
-	// This keeps lobbies visible in the list so others can see and join them
-	// Host can start the game when ready using the "Start Game" button
-
 	return lobby, player, nil
 }
 
@@ -110,13 +105,11 @@ func (gs *GameService) LeaveLobby(lobbyID, playerID string) error {
 
 	gs.repo.SaveLobby(lobby)
 
-	// Broadcast player left
 	gs.BroadcastLobbyUpdate(lobbyHub, "player_left", map[string]interface{}{
 		"player_id": playerID,
 		"lobby":     lobby,
 	})
 
-	// If no players left, remove lobby
 	if len(lobby.Players) == 0 {
 		gs.hub.RemoveLobbyHub(lobbyID)
 		gs.repo.DeleteLobby(lobbyID)
@@ -139,12 +132,10 @@ func (gs *GameService) StartGame(lobbyID string) error {
 	lobby.StartGame()
 	gs.repo.SaveLobby(lobby)
 
-	// Broadcast game started event with updated lobby state
 	gs.BroadcastLobbyUpdate(lobbyHub, "game_started", map[string]interface{}{
 		"lobby": lobby,
 	})
 
-	// Start first question
 	gs.startNextQuestion(lobbyHub)
 
 	return nil
@@ -166,11 +157,9 @@ func (gs *GameService) SubmitAnswer(lobbyID, playerID string, answer int, respon
 		return ErrPlayerNotFound
 	}
 
-	// Calculate score
 	score := gs.calculateScore(lobby.CurrentQ, answer, responseTime)
 	player.Score += score
 
-	// Update streak
 	if answer == lobby.CurrentQ.Correct {
 		player.Streak++
 	} else {
@@ -179,7 +168,6 @@ func (gs *GameService) SubmitAnswer(lobbyID, playerID string, answer int, respon
 
 	gs.repo.SaveLobby(lobby)
 
-	// Broadcast answer received
 	gs.BroadcastLobbyUpdate(lobbyHub, "answer_received", map[string]interface{}{
 		"player_id": playerID,
 		"score":     score,
@@ -194,13 +182,8 @@ func (gs *GameService) calculateScore(question *models.Question, answer int, res
 		return 0
 	}
 
-	// Base score for correct answer
 	baseScore := 100
-
-	// Time bonus (faster = higher score)
-	timeBonus := int(math.Max(0, float64(50-(responseTime/1000)))) // 50 points max for speed
-
-	// Accuracy bonus
+	timeBonus := int(math.Max(0, float64(50-(responseTime/1000))))
 	accuracyBonus := 25
 
 	return baseScore + timeBonus + accuracyBonus
@@ -219,22 +202,18 @@ func (gs *GameService) startNextQuestion(lobbyHub *hub.LobbyHub) {
 
 	gs.repo.SaveLobby(lobby)
 
-	// Broadcast new question with server timestamp for synchronization
-	// Capture timestamps right before broadcasting to ensure accuracy
-	// All clients will use these timestamps to calculate synchronized countdown
-	questionEndTimestamp := lobby.QuestionEnd.UnixMilli() // Absolute server time when question ends
-	currentServerTime := time.Now().UnixMilli()           // Server time right before broadcast
+	
+	questionEndTimestamp := lobby.QuestionEnd.UnixMilli() 
+	currentServerTime := time.Now().UnixMilli()           
 
-	// Broadcast immediately to minimize delay differences between clients
 	gs.BroadcastLobbyUpdate(lobbyHub, "new_question", map[string]interface{}{
 		"question":          question,
 		"round":             lobby.Round,
 		"time_left":         15,
-		"question_end_time": questionEndTimestamp, // Server timestamp when question ends (absolute time)
-		"server_time":       currentServerTime,    // Server time when message is sent (for clock sync)
+		"question_end_time": questionEndTimestamp,
+		"server_time":       currentServerTime,   
 	})
 
-	// Schedule question end
 	go func() {
 		time.Sleep(15 * time.Second)
 		gs.endQuestion(lobbyHub)
@@ -244,24 +223,20 @@ func (gs *GameService) startNextQuestion(lobbyHub *hub.LobbyHub) {
 func (gs *GameService) endQuestion(lobbyHub *hub.LobbyHub) {
 	lobby := lobbyHub.GetLobby()
 
-	// Calculate leaderboard
 	leaderboard := gs.calculateLeaderboard(lobby)
 
-	// Broadcast results
 	gs.BroadcastLobbyUpdate(lobbyHub, "question_results", map[string]interface{}{
 		"correct_answer": lobby.CurrentQ.Correct,
 		"leaderboard":    leaderboard,
 		"round":          lobby.Round,
 	})
 
-	// Clear current question
 	lobby.CurrentQ = nil
 	lobby.QuestionEnd = nil
 	lobby.NextRound()
 
 	gs.repo.SaveLobby(lobby)
 
-	// Start next question after delay
 	time.Sleep(3 * time.Second)
 	gs.startNextQuestion(lobbyHub)
 }
@@ -295,11 +270,9 @@ func (gs *GameService) endGame(lobbyHub *hub.LobbyHub) {
 }
 
 func (gs *GameService) calculateLeaderboard(lobby *models.Lobby) []*models.Player {
-	// Sort players by score (descending)
 	players := make([]*models.Player, len(lobby.Players))
 	copy(players, lobby.Players)
 
-	// Simple bubble sort for leaderboard
 	for i := 0; i < len(players)-1; i++ {
 		for j := 0; j < len(players)-i-1; j++ {
 			if players[j].Score < players[j+1].Score {

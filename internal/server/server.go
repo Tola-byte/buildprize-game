@@ -37,10 +37,8 @@ type WebSocketMessage struct {
 }
 
 func NewServer(cfg *config.Config) *Server {
-	// Initialize components
 	gameHub := hub.NewHub()
 
-	// PostgreSQL is required
 	if cfg.DatabaseURL == "" {
 		log.Fatal("DATABASE_URL is required. Please set the DATABASE_URL environment variable.")
 	}
@@ -54,16 +52,14 @@ func NewServer(cfg *config.Config) *Server {
 
 	gameService := services.NewGameService(gameHub, repo)
 
-	// Setup WebSocket upgrader
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
-			return true // Allow all origins for development
+			return true
 		},
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 	}
 
-	// Setup Gin router
 	router := gin.Default()
 
 	server := &Server{
@@ -79,7 +75,6 @@ func NewServer(cfg *config.Config) *Server {
 }
 
 func (s *Server) setupRoutes() {
-	// CORS middleware
 	s.router.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -94,7 +89,6 @@ func (s *Server) setupRoutes() {
 		c.Next()
 	})
 
-	// Serve static files
 	wd, _ := os.Getwd()
 	clientPath := filepath.Join(wd, "client")
 	s.router.Static("/client", clientPath)
@@ -102,12 +96,10 @@ func (s *Server) setupRoutes() {
 		c.Redirect(302, "/client/index.html")
 	})
 
-	// Health check
 	s.router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// WebSocket test endpoint
 	s.router.GET("/ws-test", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"message": "WebSocket endpoint is accessible",
@@ -116,10 +108,8 @@ func (s *Server) setupRoutes() {
 		})
 	})
 
-	// API routes
 	api := s.router.Group("/api/v1")
 	{
-		// Add CORS headers to all API routes
 		api.Use(func(c *gin.Context) {
 			c.Header("Access-Control-Allow-Origin", "*")
 			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
@@ -143,10 +133,7 @@ func (s *Server) setupRoutes() {
 		api.POST("/lobbies/:id/chat", s.sendChatMessage)
 	}
 
-	// WebSocket endpoint - must be before any catch-all routes
 	s.router.GET("/ws", s.handleWebSocket)
-
-	// Debug: log all routes
 	log.Printf("WebSocket route registered at GET /ws")
 	log.Printf("Chat route registered at POST /api/v1/lobbies/:id/chat")
 }
@@ -163,7 +150,7 @@ func (s *Server) createLobby(c *gin.Context) {
 	}
 
 	if req.MaxRounds == 0 {
-		req.MaxRounds = 10 // Default
+		req.MaxRounds = 10
 	}
 
 	lobby := s.gameService.CreateLobby(req.Name, req.MaxRounds)
@@ -338,46 +325,29 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 
 	conn, err := s.upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("❌ WebSocket upgrade FAILED from %s: %v", c.Request.RemoteAddr, err)
-		log.Printf("   Upgrade failed - possible causes:")
-		log.Printf("   1. Invalid WebSocket upgrade request")
-		log.Printf("   2. Connection already closed by client")
-		log.Printf("   3. Server overload or resource limits")
+		log.Printf("WebSocket upgrade FAILED from %s: %v", c.Request.RemoteAddr, err)
 		return
 	}
-	log.Printf("✅ WebSocket upgrade successful from %s", c.Request.RemoteAddr)
-	// Don't defer close here - let the goroutines handle connection lifecycle
-
-	// Create client
+	log.Printf("WebSocket upgrade successful from %s", c.Request.RemoteAddr)
 	client := &hub.Client{
 		ID:   generateClientID(),
 		Send: make(chan []byte, 256),
 	}
 
 	log.Printf("WebSocket client connected: %s (from %s)", client.ID, c.Request.RemoteAddr)
-
-	// Log connection details immediately after creation (before lobby registration)
-	// This will show connections that are open but not yet registered with a lobby
 	log.Printf("New WebSocket connection created - client ID: %s", client.ID)
 
-	// Log total active connections across all lobbies
 	totalConnections := s.countTotalConnections()
 	log.Printf("Total active WebSocket connections (registered with lobbies): %d", totalConnections)
 
-	// WebSocket connection constants
 	const (
 		writeWait  = 10 * time.Second
-		pongWait   = 24 * time.Hour   // Very long deadline - effectively no timeout
-		pingPeriod = 30 * time.Second // Send ping every 30 seconds for health checks
+		pongWait   = 24 * time.Hour
+		pingPeriod = 30 * time.Second
 	)
 
-	// Set pong handler - we don't use deadlines for connection closing anymore
-	// Deadlines are set very long (24 hours) so connections don't timeout
-	// Pings are still sent for health monitoring but won't close connections
 	pongReceived := make(chan bool, 1)
 	conn.SetPongHandler(func(string) error {
-		// Pong received from client - just log for health monitoring
-		// Don't use deadlines to close connections
 		select {
 		case pongReceived <- true:
 		default:
@@ -385,7 +355,6 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 		return nil
 	})
 
-	// Monitor pong responses in background for health checks only (not for closing)
 	go func() {
 		pongCount := 0
 		lastPongTime := time.Now()
@@ -395,32 +364,28 @@ func (s *Server) handleWebSocket(c *gin.Context) {
 				pongCount++
 				lastPongTime = time.Now()
 				if pongCount%10 == 0 {
-					log.Printf("✅ Client %s: Received %d pongs (connection healthy)", client.ID, pongCount)
+					log.Printf("Client %s: Received %d pongs (connection healthy)", client.ID, pongCount)
 				}
 			case <-time.After(5 * time.Minute):
-				// Health check - log if no pongs received, but don't close connection
 				timeSinceLastPong := time.Since(lastPongTime)
 				if pongCount == 0 && timeSinceLastPong > 5*time.Minute {
-					log.Printf("⚠️ NOTE: Client %s has not received any pongs in 5 minutes (connection still open, just monitoring)", client.ID)
+					log.Printf("NOTE: Client %s has not received any pongs in 5 minutes (connection still open, just monitoring)", client.ID)
 				}
 			}
 		}
 	}()
 
-	// Send initial connection confirmation message
 	conn.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := conn.WriteJSON(map[string]interface{}{
 		"type":      "connected",
 		"client_id": client.ID,
 	}); err != nil {
-		log.Printf("❌ FAILED to send initial connection message to client %s: %v", client.ID, err)
-		log.Printf("   Connection will be closed due to initial message failure")
+		log.Printf("FAILED to send initial connection message to client %s: %v", client.ID, err)
 		conn.Close()
 		return
 	}
-	log.Printf("✅ Sent initial connection message to client %s", client.ID)
+	log.Printf("Sent initial connection message to client %s", client.ID)
 
-	// Handle messages - pass constants to goroutines
 	go s.handleClientMessages(conn, client, pongWait)
 	go s.handleClientWrites(conn, client, writeWait, pingPeriod)
 }
@@ -432,13 +397,10 @@ func (s *Server) handleClientMessages(conn *websocket.Conn, client *hub.Client, 
 			client.Hub.Unregister(client)
 		}
 		conn.Close()
-		// Log total connections after disconnect
 		totalConnections := s.countTotalConnections()
 		log.Printf("Total active WebSocket connections after disconnect: %d", totalConnections)
 	}()
 
-	// Set a very long read deadline (24 hours) - effectively no timeout
-	// We still use deadlines for read operations, but they won't cause connection closure
 	conn.SetReadDeadline(time.Now().Add(pongWait))
 
 	for {
@@ -447,38 +409,27 @@ func (s *Server) handleClientMessages(conn *websocket.Conn, client *hub.Client, 
 		if err != nil {
 			errStr := err.Error()
 
-			// Check for expected/normal disconnects FIRST - these are not errors
-			// "use of closed network connection" is normal when peer closes connection
 			if strings.Contains(strings.ToLower(errStr), "use of closed network connection") ||
 				strings.Contains(strings.ToLower(errStr), "broken pipe") ||
 				strings.Contains(strings.ToLower(errStr), "connection reset") ||
 				strings.Contains(strings.ToLower(errStr), "closed network") ||
 				errors.Is(err, net.ErrClosed) {
-				// Normal network-level disconnect - exit silently, don't log
 				break
 			}
 
-			// Check for WebSocket close frame errors
 			if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
-				// Normal WebSocket close - exit silently
 				break
 			}
 
-			// Check for read deadline timeout - but don't close connection, just reset deadline
-			// Since we set deadline to 24 hours, this should rarely happen
 			if strings.Contains(strings.ToLower(errStr), "i/o timeout") ||
 				strings.Contains(strings.ToLower(errStr), "deadline exceeded") {
-				log.Printf("⏱️ WebSocket read deadline reached for client %s - resetting deadline (connection stays open)", client.ID)
-				// Reset deadline instead of closing - connection stays alive
+				log.Printf("WebSocket read deadline reached for client %s - resetting deadline (connection stays open)", client.ID)
 				conn.SetReadDeadline(time.Now().Add(pongWait))
-				continue // Continue reading instead of breaking
+				continue
 			}
-
-			// Only log truly unexpected errors
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure, websocket.CloseNormalClosure) {
 				log.Printf("WebSocket unexpected close error: %v", err)
 			} else {
-				// Other unexpected errors
 				if !strings.Contains(strings.ToLower(errStr), "use of closed") {
 					log.Printf("WebSocket read error: %v", err)
 				}
@@ -486,7 +437,6 @@ func (s *Server) handleClientMessages(conn *websocket.Conn, client *hub.Client, 
 			break
 		}
 
-		// Reset read deadline on successful read (though it's already very long)
 		conn.SetReadDeadline(time.Now().Add(pongWait))
 
 		s.handleWebSocketMessage(client, &msg)
@@ -505,7 +455,6 @@ func (s *Server) handleClientWrites(conn *websocket.Conn, client *hub.Client, wr
 		case message, ok := <-client.Send:
 			conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
-				// Channel closed - send close message and exit
 				conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -519,15 +468,11 @@ func (s *Server) handleClientWrites(conn *websocket.Conn, client *hub.Client, wr
 			}
 
 			if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
-				// These errors are BENIGN - they occur when one goroutine closes the connection
-				// while another is trying to write. This is normal and expected.
-				// Don't log them to avoid noise.
 				if !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) &&
 					!errors.Is(err, net.ErrClosed) &&
 					!strings.Contains(err.Error(), "use of closed network connection") &&
 					!strings.Contains(err.Error(), "broken pipe") &&
 					!strings.Contains(err.Error(), "connection reset") {
-					// Only log truly unexpected write errors
 					log.Printf("WebSocket write error (unexpected): %v", err)
 				}
 				return
@@ -535,22 +480,16 @@ func (s *Server) handleClientWrites(conn *websocket.Conn, client *hub.Client, wr
 
 		case <-ticker.C:
 			conn.SetWriteDeadline(time.Now().Add(writeWait))
-			// Use WriteControl for ping as recommended by Gorilla WebSocket
-			// Browsers automatically respond with pong frames
 			if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(writeWait)); err != nil {
-				// Don't log expected connection closed errors - these are benign
-				// when one goroutine closes while another is writing
 				if !websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) &&
 					!errors.Is(err, net.ErrClosed) &&
 					!strings.Contains(err.Error(), "use of closed network connection") &&
 					!strings.Contains(err.Error(), "broken pipe") &&
 					!strings.Contains(err.Error(), "connection reset") {
-					log.Printf("⚠️ WebSocket ping error (unexpected) for client %s: %v", client.ID, err)
+					log.Printf("WebSocket ping error (unexpected) for client %s: %v", client.ID, err)
 				}
 				return
 			}
-			// Ping sent successfully - pong handler will reset read deadline when browser responds
-			// Note: We don't log successful pings to avoid spam, but pong handler will log if pong received
 		}
 	}
 }
@@ -589,8 +528,6 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 		return
 	}
 
-	// Check if player already joined (via REST API)
-	// This needs to happen before registering to avoid race conditions
 	lobby := lobbyHub.GetLobby()
 	playerExists := false
 	for _, p := range lobby.Players {
@@ -601,16 +538,11 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 		}
 	}
 
-	// Register WebSocket client with the lobby hub
-	// First, unregister if already registered with a different lobby or same lobby
 	if client.Hub != nil && client.Hub != lobbyHub {
-		// Client was registered with a different lobby, unregister first
 		client.Hub.Unregister(client)
 	} else if client.Hub == lobbyHub {
-		// Client already registered with this lobby - check if it's a duplicate
 		existingClients := lobbyHub.GetClients()
 		for _, existingClient := range existingClients {
-			// If same client ID but different connection, this is a reconnect
 			if existingClient.ID == client.ID && existingClient.Send != client.Send {
 				log.Printf("Client %s reconnecting, unregistering old connection", client.ID)
 				lobbyHub.Unregister(existingClient)
@@ -623,8 +555,6 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 	client.Hub = lobbyHub
 	lobbyHub.Register(client)
 
-	// Only join via game service if not already a player
-	// This prevents duplicate joins and re-broadcasts
 	if !playerExists {
 		// Join the player and broadcast to all clients (including the one just registered)
 		_, newPlayer, err := s.gameService.JoinLobby(lobbyID, username)
@@ -636,29 +566,16 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 			log.Printf("handleJoinLobby: Failed to join lobby %s for player %s: %v", lobbyID, username, err)
 		}
 	} else {
-		// Player already joined via REST, broadcast current state to ALL clients
-		// Get fresh lobby state to ensure we're broadcasting the latest state
 		currentLobby := lobbyHub.GetLobby()
-		// This ensures everyone (including newly connected clients) gets the latest lobby state
-		// Use player_joined event type so frontend handles it the same way
 		s.gameService.BroadcastLobbyUpdate(lobbyHub, "player_joined", map[string]interface{}{
 			"lobby": currentLobby,
 		})
 	}
 
-	// ============================================================================
-	// FIX: Send current question to newly connected clients
-	// ============================================================================
-	// PROBLEM: When a client joins a lobby that already has a game in progress,
-	// they miss the current question because it was sent before they registered.
-	// This causes the first question to only show for the creator, not the joiner.
-	//
-	// SOLUTION: After registering the client, check if the game is in progress
-	// and if there's an active question. If so, send it directly to this client.
-	// ============================================================================
+	
 	currentLobby := lobbyHub.GetLobby()
 	if currentLobby.State == models.InProgress && currentLobby.IsQuestionActive() && currentLobby.CurrentQ != nil {
-		// Game is in progress with an active question - send it to the newly connected client
+		
 		questionEndTimestamp := currentLobby.QuestionEnd.UnixMilli()
 		currentServerTime := time.Now().UnixMilli()
 		remainingSeconds := int(time.Until(*currentLobby.QuestionEnd).Seconds())
@@ -683,7 +600,7 @@ func (s *Server) handleJoinLobby(client *hub.Client, msg *WebSocketMessage) {
 		if err != nil {
 			log.Printf("Error marshaling current question for client %s: %v", client.ID, err)
 		} else {
-			// Send directly to this client's channel (non-blocking)
+		
 			select {
 			case client.Send <- jsonData:
 				log.Printf("Sent current question to newly connected client %s (player: %s) in lobby %s", client.ID, client.PlayerID, lobbyID)
@@ -705,10 +622,9 @@ func (s *Server) handleLeaveLobby(client *hub.Client, msg *WebSocketMessage) {
 		return
 	}
 
-	// Get player ID from client or message data
 	playerID := client.PlayerID
 	if playerID == "" {
-		// Try to get from message data
+		
 		if data, ok := msg.Data.(map[string]interface{}); ok {
 			if pid, ok := data["player_id"].(string); ok {
 				playerID = pid
@@ -718,7 +634,6 @@ func (s *Server) handleLeaveLobby(client *hub.Client, msg *WebSocketMessage) {
 
 	if playerID == "" {
 		log.Printf("handleLeaveLobby: No player ID found for client %s in lobby %s", client.ID, lobbyID)
-		// Still unregister the WebSocket connection even if we can't remove the player
 		if client.Hub != nil {
 			client.Hub.Unregister(client)
 			client.Hub = nil
@@ -726,14 +641,11 @@ func (s *Server) handleLeaveLobby(client *hub.Client, msg *WebSocketMessage) {
 		return
 	}
 
-	// Remove player from lobby via game service (this will broadcast to all clients)
 	err := s.gameService.LeaveLobby(lobbyID, playerID)
 	if err != nil {
 		log.Printf("handleLeaveLobby: Failed to leave lobby %s for player %s: %v", lobbyID, playerID, err)
-		// Still unregister the WebSocket connection even if leave failed
 	}
 
-	// Unregister WebSocket client from hub
 	if client.Hub != nil {
 		client.Hub.Unregister(client)
 		client.Hub = nil
@@ -864,11 +776,8 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) countTotalConnections() int {
-	// Count connections by checking all lobbies via repository
-	// We'll use a simpler approach - count via game service
 	total := 0
 
-	// Get all lobbies from repository to iterate through
 	allLobbies, err := s.gameService.GetRepository().ListLobbies()
 	if err != nil {
 		log.Printf("Error listing lobbies for connection count: %v", err)
@@ -891,7 +800,5 @@ func (s *Server) countTotalConnections() int {
 }
 
 func generateClientID() string {
-	// Use nanosecond precision + random component to ensure uniqueness
-	// This prevents duplicate IDs even if called multiple times in quick succession
 	return "client_" + time.Now().Format("20060102150405") + "_" + time.Now().Format("000000000")
 }

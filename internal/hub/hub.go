@@ -11,7 +11,7 @@ import (
 
 type Hub struct {
 	lobbies map[string]*LobbyHub
-	mu      sync.RWMutex // read-write mutex , allows mutliple readers or one writer
+	mu      sync.RWMutex
 }
 type LobbyHub struct {
 	lobby      *models.Lobby
@@ -22,17 +22,14 @@ type LobbyHub struct {
 	mu         sync.RWMutex
 }
 
-// WebSocketClient represents a player's WebSocket connection to a lobby.
-// Each player connected to a lobby has one WebSocketClient instance.
 type WebSocketClient struct {
-	ID       string      // Unique connection ID (different from PlayerID)
-	LobbyID  string      // Which lobby this connection belongs to
-	PlayerID string      // Links to the actual Player in the lobby
-	Send     chan []byte // Channel for sending messages to this player
-	Hub      *LobbyHub   // The lobby hub managing this connection
+	ID       string
+	LobbyID  string
+	PlayerID string
+	Send     chan []byte
+	Hub      *LobbyHub
 }
 
-// Client is an alias for WebSocketClient (for backward compatibility)
 type Client = WebSocketClient
 
 type LobbyHubInterface interface {
@@ -79,6 +76,16 @@ func (h *Hub) RemoveLobbyHub(lobbyID string) {
 	delete(h.lobbies, lobbyID)
 }
 
+func (h *Hub) GetAllLobbies() map[string]*LobbyHub {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	result := make(map[string]*LobbyHub)
+	for k, v := range h.lobbies {
+		result[k] = v
+	}
+	return result
+}
+
 func (lh *LobbyHub) run() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -86,7 +93,6 @@ func (lh *LobbyHub) run() {
 	for {
 		select {
 		case client := <-lh.register:
-			// Client already registered synchronously in Register(), just log
 			log.Printf("Player connection %s (player: %s) registered with lobby %s", client.ID, client.PlayerID, lh.lobby.ID)
 
 		case client := <-lh.unregister:
@@ -133,7 +139,6 @@ func (lh *LobbyHub) run() {
 			log.Printf("LobbyHub: Successfully queued message to %d/%d clients", successCount, clientCount)
 			lh.mu.RUnlock()
 
-			// Remove dead clients (requires write lock)
 			if len(clientsToRemove) > 0 {
 				lh.mu.Lock()
 				for _, clientID := range clientsToRemove {
@@ -146,21 +151,16 @@ func (lh *LobbyHub) run() {
 			}
 
 		case <-ticker.C:
-			// Periodic health check (can be used for connection monitoring)
-			// Question timeouts are handled by game service, not here
 		}
 	}
 }
 
 func (lh *LobbyHub) Register(client *WebSocketClient) {
 	log.Printf("Registering player connection %s (player: %s) with lobby %s", client.ID, client.PlayerID, lh.lobby.ID)
-	// Register synchronously to ensure client is in map before any broadcasts
 	lh.mu.Lock()
-	// Check if client with this ID already exists - prevent duplicate registrations
 	if existing, ok := lh.clients[client.ID]; ok {
-		log.Printf("⚠️ WARNING: Client %s already registered in lobby %s! This might indicate duplicate connections.", client.ID, lh.lobby.ID)
+		log.Printf("WARNING: Client %s already registered in lobby %s! This might indicate duplicate connections.", client.ID, lh.lobby.ID)
 		log.Printf("  Existing client Send channel: %p, New client Send channel: %p", existing.Send, client.Send)
-		// Close old connection's send channel if different
 		if existing.Send != client.Send {
 			log.Printf("  Closing old connection's Send channel")
 			close(existing.Send)
@@ -170,11 +170,9 @@ func (lh *LobbyHub) Register(client *WebSocketClient) {
 	clientCount := len(lh.clients)
 	lh.mu.Unlock()
 	log.Printf("Lobby %s now has %d registered connection(s)", lh.lobby.ID, clientCount)
-	// Also send to channel for logging/notification purposes (non-blocking)
 	select {
 	case lh.register <- client:
 	default:
-		// Channel full, skip (client already registered)
 	}
 }
 
@@ -193,5 +191,9 @@ func (lh *LobbyHub) GetLobby() *models.Lobby {
 func (lh *LobbyHub) GetClients() map[string]*WebSocketClient {
 	lh.mu.RLock()
 	defer lh.mu.RUnlock()
-	return lh.clients
+	result := make(map[string]*WebSocketClient)
+	for k, v := range lh.clients {
+		result[k] = v
+	}
+	return result
 }
