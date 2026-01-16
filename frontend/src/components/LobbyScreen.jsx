@@ -163,7 +163,7 @@ export default function LobbyScreen() {
     return (
       <div className="lobby-screen">
         <div className="lobby-container">
-          <h1>🎮 Quiz Game</h1>
+          <h1>Quiz Game</h1>
           <div className="form-group">
             <label htmlFor="usernameHome">Your Username</label>
             <input
@@ -189,17 +189,17 @@ export default function LobbyScreen() {
 
           <div className="lobbies-list">
             <div className="lobbies-header">
-              <h2>🎯 Available Lobbies</h2>
+              <h2>Available Lobbies</h2>
               <div className="lobbies-actions">
                 <button onClick={loadLobbies} className="btn btn-small btn-secondary">
-                  🔄 Refresh
+                  Refresh
                 </button>
                 <button 
                   onClick={handleJoinRandom} 
                   className="btn btn-small btn-primary"
                   disabled={loading || lobbies.filter(l => l.state === 'waiting').length === 0}
                 >
-                  🎲 Join Random
+                  Join Random
                 </button>
               </div>
             </div>
@@ -216,15 +216,15 @@ export default function LobbyScreen() {
                       <div className="lobby-item-header">
                         <strong className="lobby-name">{lobby.name}</strong>
                         <span className="lobby-status lobby-status-waiting">
-                          ⏳ Waiting
+                          Waiting
                         </span>
                       </div>
                       <div className="lobby-item-details">
                         <span className="lobby-players">
-                          👥 {lobby.players?.length || 0}/8 players
+                          {lobby.players?.length || 0}/8 players
                         </span>
                         <span className="lobby-rounds">
-                          📝 {lobby.max_rounds || 10} questions
+                          {lobby.max_rounds || 10} questions
                         </span>
                       </div>
                       {lobby.players && lobby.players.length > 0 && (
@@ -380,7 +380,7 @@ export default function LobbyScreen() {
     return (
       <div className="lobby-screen">
         <div className="lobby-container">
-          <h1>✅ Lobby Created!</h1>
+          <h1>Lobby Created!</h1>
           <div className="lobby-info">
             <p><strong>Lobby Name:</strong> {createdLobby.name}</p>
             <div className="lobby-id-section">
@@ -388,7 +388,7 @@ export default function LobbyScreen() {
               <div className="lobby-id-box">
                 <code className="lobby-id">{createdLobby.id}</code>
                 <button onClick={copyLobbyId} className="btn btn-small btn-secondary">
-                  📋 Copy
+                  Copy
                 </button>
               </div>
               <p className="lobby-id-hint">Share this ID with friends so they can join!</p>

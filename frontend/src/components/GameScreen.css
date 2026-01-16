@@ -6,6 +6,7 @@
   background-size: 400% 400%;
   animation: gradientShift 15s ease infinite;
   padding: 20px;
+  padding-right: 420px;
   position: relative;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -98,15 +99,14 @@
   padding: 30px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  position: fixed;
-  top: 50%;
-  left: 40px;
-  transform: translateY(-50%);
+  position: relative;
+  margin-bottom: 20px;
   z-index: 10;
   animation: questionScreenFadeIn 0.6s ease-out;
   min-width: 0;
-  width: calc(100vw - 500px);
-  max-height: 90vh;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(90vh - 200px);
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -119,15 +119,14 @@
   padding: 30px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  position: fixed;
-  top: 50%;
-  left: 40px;
-  transform: translateY(-50%);
+  position: relative;
+  margin-bottom: 20px;
   z-index: 10;
   animation: questionScreenFadeIn 0.6s ease-out;
   min-width: 0;
-  width: calc(100vw - 500px);
-  max-height: 90vh;
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(90vh - 200px);
   overflow-y: auto;
   overflow-x: hidden;
   box-sizing: border-box;
@@ -136,11 +135,11 @@
 @keyframes questionScreenFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-45%);
+    transform: translateY(20px);
   }
   to {
     opacity: 1;
-    transform: translateY(-50%);
+    transform: translateY(0);
   }
 }
 
@@ -486,8 +485,9 @@
   top: 50%;
   right: 40px;
   transform: translateY(-50%);
-  max-height: 90vh;
+  max-height: 95vh;
   overflow-y: auto;
+  overflow-x: visible;
   z-index: 11;
   display: flex;
   flex-direction: column;
@@ -496,6 +496,7 @@
   min-width: 380px;
   max-width: 380px;
   box-sizing: border-box;
+  padding-bottom: 10px;
 }
 
 .sidebar::-webkit-scrollbar {
@@ -599,11 +600,11 @@
   backdrop-filter: blur(10px);
   border-radius: 16px;
   border: 1px solid rgba(148, 163, 184, 0.1);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  max-height: 300px;
-  min-height: 200px;
+  max-height: 400px;
+  min-height: 250px;
   flex-shrink: 0;
   animation: slideUp 0.4s ease-out, fadeIn 0.4s ease-out;
 }
@@ -648,10 +649,12 @@
 .chat-messages {
   flex: 1;
   overflow-y: auto;
+  overflow-x: visible;
   padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-height: 150px;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -680,13 +683,14 @@
 }
 
 .chat-message {
-  max-width: 75%;
+  max-width: 85%;
   border-radius: 16px;
   padding: 0.75rem 1rem;
   animation: slideInRight 0.3s ease-out;
   transition: all 0.2s ease;
   margin-bottom: 0.5rem;
   position: relative;
+  flex-shrink: 0;
 }
 
 .chat-message.other-message {
@@ -775,7 +779,7 @@
 }
 
 .chat-pending-indicator::before {
-  content: '⏳';
+  content: '';
   font-size: 0.6rem;
 }
 
@@ -857,68 +861,57 @@
 }
 
 @media (max-width: 1600px) {
+  .game-screen {
+    padding-right: 390px;
+  }
+  
   .sidebar {
     right: 30px;
     width: 350px;
     min-width: 350px;
     max-width: 350px;
   }
-  
-  .question-screen,
-  .waiting-screen,
-  .results-screen,
-  .finished-screen {
-    left: 30px;
-    width: calc(100vw - 440px);
-  }
 }
 
 @media (max-width: 1400px) {
+  .game-screen {
+    padding-right: 360px;
+  }
+  
   .sidebar {
     right: 25px;
     width: 320px;
     min-width: 320px;
     max-width: 320px;
   }
-  
-  .question-screen,
-  .waiting-screen,
-  .results-screen,
-  .finished-screen {
-    left: 25px;
-    width: calc(100vw - 405px);
-  }
 }
 
 @media (max-width: 1200px) {
+  .game-screen {
+    padding-right: 340px;
+  }
+  
   .sidebar {
     right: 20px;
     width: 300px;
     min-width: 300px;
     max-width: 300px;
   }
-  
-  .question-screen,
-  .waiting-screen,
-  .results-screen,
-  .finished-screen {
-    left: 20px;
-    width: calc(100vw - 380px);
-  }
 }
 
 @media (max-width: 968px) {
   .game-screen {
     padding: 15px;
+    padding-right: 15px;
   }
   
   .question-screen {
-    position: fixed;
-    top: 50%;
-    left: 15px;
-    transform: translateY(-50%);
-    width: calc(100vw - 30px);
-    max-height: 95vh;
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    max-height: none;
   }
 
   .sidebar {
@@ -936,18 +929,18 @@
   .waiting-screen,
   .results-screen,
   .finished-screen {
-    position: fixed;
-    top: 50%;
-    left: 15px;
-    transform: translateY(-50%);
+    position: relative;
+    top: auto;
+    left: auto;
+    transform: none;
     padding: 20px;
-    width: calc(100vw - 30px);
-    max-height: 95vh;
+    width: 100%;
+    max-height: none;
   }
 
   .chat-container {
-    max-height: 200px;
-    min-height: 150px;
+    max-height: 250px;
+    min-height: 180px;
   }
 
   .question h2 {

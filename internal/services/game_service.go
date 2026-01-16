@@ -259,7 +259,7 @@ func (gs *GameService) endGame(lobbyHub *hub.LobbyHub) {
 	if len(leaderboard) > 0 {
 		eventData["winner"] = leaderboard[0]
 	} else {
-		log.Printf("⚠️ WARNING: Game ended with no players in lobby %s", lobby.ID)
+		log.Printf("WARNING: Game ended with no players in lobby %s", lobby.ID)
 		eventData["winner"] = nil
 	}
 

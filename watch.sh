@@ -3,7 +3,7 @@
 # Simple file watcher for Go development
 # Watches for .go file changes and automatically restarts the server
 
-echo "🔍 Watching for Go file changes..."
+echo "Watching for Go file changes..."
 echo "Press Ctrl+C to stop"
 
 # Colors
@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Function to start server
 start_server() {
-    echo -e "${GREEN}🚀 Starting server...${NC}"
+    echo -e "${GREEN}Starting server...${NC}"
     go run main.go &
     SERVER_PID=$!
 }
@@ -21,7 +21,7 @@ start_server() {
 # Function to stop server
 stop_server() {
     if [ ! -z "$SERVER_PID" ]; then
-        echo -e "${YELLOW}⏹️  Stopping server (PID: $SERVER_PID)...${NC}"
+        echo -e "${YELLOW}Stopping server (PID: $SERVER_PID)...${NC}"
         kill $SERVER_PID 2>/dev/null
         wait $SERVER_PID 2>/dev/null
     fi
@@ -49,7 +49,7 @@ elif command -v inotifywait &> /dev/null; then
         start_server
     done
 else
-    echo "⚠️  No file watcher found. Install 'fswatch' (macOS) or 'inotifywait' (Linux)"
+    echo "No file watcher found. Install 'fswatch' (macOS) or 'inotifywait' (Linux)"
     echo "   macOS: brew install fswatch"
     echo "   Linux: sudo apt-get install inotify-tools"
     echo ""

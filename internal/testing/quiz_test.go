@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 }
 
 func setup() {
-	fmt.Println("🚀 Setting up BuildPrize Quiz Backend Tests")
+	fmt.Println("Setting up BuildPrize Quiz Backend Tests")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Start the server
@@ -43,11 +43,11 @@ func setup() {
 	// Initialize test client
 	testClient = NewTestClient(API_BASE)
 	
-	fmt.Println("✅ Setup complete!")
+	fmt.Println("Setup complete!")
 }
 
 func startServer() {
-	fmt.Println("📡 Starting Go server...")
+	fmt.Println("Starting Go server...")
 	
 	// Start server in background
 	serverProcess = exec.Command("go", "run", "main.go")
@@ -60,7 +60,7 @@ func startServer() {
 }
 
 func waitForServer() {
-	fmt.Println("⏳ Waiting for server to start...")
+	fmt.Println("Waiting for server to start...")
 	
 	client := NewTestClient("")
 	maxRetries := 30
@@ -68,17 +68,17 @@ func waitForServer() {
 	for i := 0; i < maxRetries; i++ {
 		resp, err := client.Get("/health")
 		if err == nil && resp.StatusCode == 200 {
-			fmt.Println("✅ Server is ready!")
+			fmt.Println("Server is ready!")
 			return
 		}
 		time.Sleep(1 * time.Second)
 	}
 	
-	log.Fatal("❌ Server failed to start within 30 seconds")
+	log.Fatal("Server failed to start within 30 seconds")
 }
 
 func cleanup() {
-	fmt.Println("🧹 Cleaning up...")
+	fmt.Println("Cleaning up...")
 	
 	if serverProcess != nil {
 		serverProcess.Process.Kill()
@@ -87,7 +87,7 @@ func cleanup() {
 }
 
 func TestHealthEndpoint(t *testing.T) {
-	fmt.Println("\n🔍 Testing health endpoint...")
+	fmt.Println("\nTesting health endpoint...")
 	
 	resp, err := testClient.Get("/health")
 	if err != nil {
@@ -99,11 +99,11 @@ func TestHealthEndpoint(t *testing.T) {
 		t.Fatalf("Expected status 200, got %d", resp.StatusCode)
 	}
 	
-	fmt.Println("✅ Health check passed")
+	fmt.Println("Health check passed")
 }
 
 func TestCreateLobby(t *testing.T) {
-	fmt.Println("\n🏗️ Testing lobby creation...")
+	fmt.Println("\nTesting lobby creation...")
 	
 	req := CreateLobbyRequest{
 		Name:      "Test Quiz Game",
@@ -128,14 +128,14 @@ func TestCreateLobby(t *testing.T) {
 		t.Fatalf("Expected max rounds 3, got %d", lobby.MaxRounds)
 	}
 	
-	fmt.Printf("✅ Lobby created with ID: %s\n", lobby.ID)
+	fmt.Printf("Lobby created with ID: %s\n", lobby.ID)
 	
 	// Store lobby ID for other tests
 	t.Setenv("TEST_LOBBY_ID", lobby.ID)
 }
 
 func TestListLobbies(t *testing.T) {
-	fmt.Println("\n📋 Testing lobby listing...")
+	fmt.Println("\nTesting lobby listing...")
 	
 	var lobbies []LobbyResponse
 	err := testClient.GetJSON("/lobbies", &lobbies)
@@ -143,11 +143,11 @@ func TestListLobbies(t *testing.T) {
 		t.Fatalf("Failed to list lobbies: %v", err)
 	}
 	
-	fmt.Printf("✅ Found %d lobbies\n", len(lobbies))
+	fmt.Printf("Found %d lobbies\n", len(lobbies))
 }
 
 func TestJoinLobby(t *testing.T) {
-	fmt.Println("\n👥 Testing lobby joining...")
+	fmt.Println("\nTesting lobby joining...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	if lobbyID == "" {
@@ -172,14 +172,14 @@ func TestJoinLobby(t *testing.T) {
 		t.Fatalf("Expected 1 player in lobby, got %d", len(response.Lobby.Players))
 	}
 	
-	fmt.Println("✅ Player1 joined lobby")
+	fmt.Println("Player1 joined lobby")
 	
 	// Store player ID for other tests
 	t.Setenv("TEST_PLAYER1_ID", response.Player.ID)
 }
 
 func TestJoinSecondPlayer(t *testing.T) {
-	fmt.Println("\n👥 Testing second player joining...")
+	fmt.Println("\nTesting second player joining...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	if lobbyID == "" {
@@ -204,14 +204,14 @@ func TestJoinSecondPlayer(t *testing.T) {
 		t.Fatalf("Expected 2 players in lobby, got %d", len(response.Lobby.Players))
 	}
 	
-	fmt.Println("✅ Player2 joined lobby")
+	fmt.Println("Player2 joined lobby")
 	
 	// Store player ID for other tests
 	t.Setenv("TEST_PLAYER2_ID", response.Player.ID)
 }
 
 func TestStartGame(t *testing.T) {
-	fmt.Println("\n🎮 Testing game start...")
+	fmt.Println("\nTesting game start...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	if lobbyID == "" {
@@ -228,11 +228,11 @@ func TestStartGame(t *testing.T) {
 		t.Fatalf("Expected 'started' in message, got '%s'", response.Message)
 	}
 	
-	fmt.Println("✅ Game started successfully")
+	fmt.Println("Game started successfully")
 }
 
 func TestSubmitAnswers(t *testing.T) {
-	fmt.Println("\n📝 Testing answer submission...")
+	fmt.Println("\nTesting answer submission...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	player1ID := os.Getenv("TEST_PLAYER1_ID")
@@ -255,7 +255,7 @@ func TestSubmitAnswers(t *testing.T) {
 		t.Fatalf("Player1 answer submission failed: %v", err)
 	}
 	
-	fmt.Println("✅ Player1 answer submitted")
+	fmt.Println("Player1 answer submitted")
 	
 	// Player2 submits wrong answer slowly
 	req2 := SubmitAnswerRequest{
@@ -270,11 +270,11 @@ func TestSubmitAnswers(t *testing.T) {
 		t.Fatalf("Player2 answer submission failed: %v", err)
 	}
 	
-	fmt.Println("✅ Player2 answer submitted")
+	fmt.Println("Player2 answer submitted")
 }
 
 func TestLobbyState(t *testing.T) {
-	fmt.Println("\n📊 Testing lobby state retrieval...")
+	fmt.Println("\nTesting lobby state retrieval...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	if lobbyID == "" {
@@ -282,7 +282,7 @@ func TestLobbyState(t *testing.T) {
 	}
 	
 	// Wait a bit for question timeout
-	fmt.Println("⏳ Waiting for question timeout...")
+	fmt.Println("Waiting for question timeout...")
 	time.Sleep(5 * time.Second)
 	
 	var lobby LobbyResponse
@@ -295,7 +295,7 @@ func TestLobbyState(t *testing.T) {
 		t.Fatalf("Expected lobby ID %s, got %s", lobbyID, lobby.ID)
 	}
 	
-	fmt.Printf("✅ Lobby state retrieved - Round: %d, Players: %d\n", lobby.Round, len(lobby.Players))
+	fmt.Printf("Lobby state retrieved - Round: %d, Players: %d\n", lobby.Round, len(lobby.Players))
 	
 	// Print player scores
 	for _, player := range lobby.Players {
@@ -304,7 +304,7 @@ func TestLobbyState(t *testing.T) {
 }
 
 func TestLeaveLobby(t *testing.T) {
-	fmt.Println("\n🚪 Testing player leaving lobby...")
+	fmt.Println("\nTesting player leaving lobby...")
 	
 	lobbyID := os.Getenv("TEST_LOBBY_ID")
 	player1ID := os.Getenv("TEST_PLAYER1_ID")
@@ -323,17 +323,17 @@ func TestLeaveLobby(t *testing.T) {
 		t.Fatalf("Failed to leave lobby: %v", err)
 	}
 	
-	fmt.Println("✅ Player1 left lobby")
+	fmt.Println("Player1 left lobby")
 }
 
 func TestFullGameFlow(t *testing.T) {
-	fmt.Println("\n🎯 Running full game flow test...")
+	fmt.Println("\nRunning full game flow test...")
 	
 	// This test runs all the individual tests in sequence
 	// to simulate a complete game flow
 	
-	fmt.Println("✅ Full game flow completed successfully!")
-	fmt.Println("\n🎉 All tests passed!")
+	fmt.Println("Full game flow completed successfully!")
+	fmt.Println("\nAll tests passed!")
 	fmt.Println(strings.Repeat("=", 50))
 	fmt.Println("Backend is working correctly!")
 	fmt.Println("You can now:")

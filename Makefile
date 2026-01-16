@@ -7,43 +7,43 @@ all: test
 
 # Run tests
 test:
-	@echo "🚀 Running BuildPrize Quiz Tests"
+	@echo "Running BuildPrize Quiz Tests"
 	@echo "=================================="
 	@go test ./internal/testing -v
 
 # Run tests with verbose output
 test-verbose:
-	@echo "🚀 Running BuildPrize Quiz Tests (Verbose)"
+	@echo "Running BuildPrize Quiz Tests (Verbose)"
 	@echo "=========================================="
 	@go test ./internal/testing -v -count=1
 
 # Build the application
 build:
-	@echo "🔨 Building BuildPrize Quiz..."
+	@echo "Building BuildPrize Quiz..."
 	@go build -o buildprize-game .
 
 # Run the application
 run:
-	@echo "🚀 Starting BuildPrize Quiz Server..."
+	@echo "Starting BuildPrize Quiz Server..."
 	@go run main.go
 
 # Run with auto-reload (requires air or watch.sh)
 dev:
 	@if command -v air &> /dev/null; then \
-		echo "🔄 Starting with Air (auto-reload)..."; \
+		echo "Starting with Air (auto-reload)..."; \
 		air; \
 	elif [ -f "./watch.sh" ]; then \
-		echo "🔄 Starting with watch.sh (auto-reload)..."; \
+		echo "Starting with watch.sh (auto-reload)..."; \
 		./watch.sh; \
 	else \
-		echo "⚠️  Auto-reload not available. Install 'air' or use 'make run'"; \
+		echo "Auto-reload not available. Install 'air' or use 'make run'"; \
 		echo "   Install air: go install github.com/cosmtrek/air@latest"; \
 		echo "   Or use: make run"; \
 	fi
 
 # Clean build artifacts
 clean:
-	@echo "🧹 Cleaning up..."
+	@echo "Cleaning up..."
 	@rm -f buildprize-game
 	@go clean
 

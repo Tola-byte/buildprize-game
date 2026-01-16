@@ -4,11 +4,11 @@ React + Vite frontend for the Quiz Game application.
 
 ## Features
 
-- 🎮 Create and join lobbies
-- ⚡ Real-time updates via WebSocket
-- 🎯 Interactive quiz questions with timer
-- 📊 Live leaderboard updates
-- 🎨 Modern, responsive UI
+- Create and join lobbies
+- Real-time updates via WebSocket
+- Interactive quiz questions with timer
+- Live leaderboard updates
+- Modern, responsive UI
 
 ## Setup
 

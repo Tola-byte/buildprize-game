@@ -40,7 +40,7 @@ if [ ! -f "go.mod" ]; then
     exit 1
 fi
 
-print_status "🚀 Starting BuildPrize Quiz Go Tests"
+print_status "Starting BuildPrize Quiz Go Tests"
 echo "=================================================="
 
 # Clean up any existing processes on port 8080
@@ -52,7 +52,7 @@ print_status "Running Go test suite..."
 echo ""
 
 if go test ./internal/testing -v; then
-    print_success "🎉 All Go tests passed!"
+    print_success "All Go tests passed!"
     echo "=================================================="
     print_status "Backend is working correctly!"
     print_status "You can now:"
@@ -61,6 +61,6 @@ if go test ./internal/testing -v; then
     print_status "  - Start games and submit answers"
     print_status "  - Use WebSocket for real-time updates"
 else
-    print_error "❌ Some tests failed!"
+    print_error "Some tests failed!"
     exit 1
 fi

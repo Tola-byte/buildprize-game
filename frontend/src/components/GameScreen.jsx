@@ -29,6 +29,7 @@ export default function GameScreen() {
   const questionEndTimeRef = useRef(null); // Store server's absolute end time
   const serverTimeOffsetRef = useRef(0); // Store clock offset for sync
   const chatEndRef = useRef(null);
+  const hasJoinedLobbyRef = useRef(false); // Track if we've already joined the lobby
 
   useEffect(() => {
     if (!lobby || !player) {
@@ -510,9 +511,11 @@ export default function GameScreen() {
       )}
 
       <div className="sidebar">
-        <div style={{ flexShrink: 0 }}>
-        <Leaderboard players={lobby.players || []} />
-        </div>
+        {lobby.state !== 'finished' && (
+          <div style={{ flexShrink: 0 }}>
+            <Leaderboard players={lobby.players || []} />
+          </div>
+        )}
         
         {/* Chat Section */}
         <div className="chat-container">

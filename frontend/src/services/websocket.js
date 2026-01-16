@@ -99,7 +99,7 @@ class WebSocketService {
       const connectionTimeout = setTimeout(() => {
         if (this.ws && this.ws.readyState !== WebSocket.OPEN) {
           const elapsed = Date.now() - connectionStartTime;
-          console.error(`⏱️ WebSocket connection timeout after ${elapsed}ms (30s limit)`);
+          console.error(`WebSocket connection timeout after ${elapsed}ms (30s limit)`);
           console.error('   Current state:', this.ws.readyState);
           console.error('   WebSocket URL was:', wsUrl);
           console.error('   Possible causes:');
@@ -119,7 +119,7 @@ class WebSocketService {
       this.ws.onopen = () => {
         clearTimeout(connectionTimeout);
         const connectTime = Date.now();
-        console.log('✅ WebSocket connected successfully');
+        console.log('WebSocket connected successfully');
         console.log(`   Connection established in ${connectTime}ms`);
         this.reconnectAttempts = 0;
         this.isReconnecting = false;
@@ -133,7 +133,7 @@ class WebSocketService {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
             messageCount++;
             if (messageCount % 20 === 0) {
-              console.log(`✅ WebSocket connection healthy (${messageCount * 30}s uptime)`);
+              console.log(`WebSocket connection healthy (${messageCount * 30}s uptime)`);
             }
           } else {
             clearInterval(healthCheck);
@@ -156,7 +156,7 @@ class WebSocketService {
 
       this.ws.onerror = (error) => {
         clearTimeout(connectionTimeout);
-        console.error('❌ WebSocket error event:', error);
+        console.error('WebSocket error event:', error);
         console.error('   WebSocket readyState:', this.ws?.readyState);
         console.error('   Error details:', {
           type: error.type,
@@ -191,7 +191,7 @@ class WebSocketService {
           this.connectionStatus = 'disconnected';
         } else if (event.code === 1006) {
           // Abnormal closure - connection lost without close frame
-          console.error('❌ WebSocket connection lost (1006) - abnormal closure');
+          console.error('WebSocket connection lost (1006) - abnormal closure');
           console.error('   Possible causes:');
           console.error('   1. Network interruption (WiFi disconnect, mobile data loss)');
           console.error('   2. Server crashed or restarted');
@@ -199,7 +199,7 @@ class WebSocketService {
           console.error('   4. Read deadline timeout (no pong response for 60s)');
           this.connectionStatus = 'error';
         } else {
-          console.error(`❌ WebSocket closed with code ${event.code}: ${event.reason}`);
+          console.error(`WebSocket closed with code ${event.code}: ${event.reason}`);
           console.error(`   Close code ${event.code} details:`);
           if (event.code === 1001) {
             console.error('   - 1001: Going away (server closing or navigated away)');
